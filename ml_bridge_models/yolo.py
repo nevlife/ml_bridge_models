@@ -51,9 +51,9 @@ def infer(model, sample):
     # ultralytics reads NumPy images as BGR.
     result = model.predict(rgb[..., ::-1], verbose=False)[0]
     message = Detection2DArray()
-    for (x0, y0, x1, y1), cls, score in zip(result.boxes.xyxy.tolist(),
-                                             result.boxes.cls.tolist(),
-                                             result.boxes.conf.tolist()):
+    boxes = result.boxes
+    for (x0, y0, x1, y1), cls, score in zip(boxes.xyxy.tolist(), boxes.cls.tolist(),
+                                            boxes.conf.tolist()):
         detection = Detection2D()
         detection.bbox.center.position.x = (x0 + x1) / 2
         detection.bbox.center.position.y = (y0 + y1) / 2
