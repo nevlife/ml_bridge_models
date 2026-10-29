@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ml_bridge_models"
+version = "0.1.0"
+description = "Models for ml_bridge"
+license = {text = "MIT"}
+requires-python = ">=3.10"
+
+[project.optional-dependencies]
+yolo = ["ultralytics"]
+
+[tool.setuptools]
+packages = ["ml_bridge_models"]

@@ -1,0 +1,5 @@
+# Remap /camera/image to the camera topic.
+inputs:
+  /camera/image: {type: sensor_msgs/msg/Image}
+time: header
+output: {topic: ~/detections, type: vision_msgs/msg/Detection2DArray}
