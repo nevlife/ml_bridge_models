@@ -8,6 +8,16 @@ model's virtual environment, not a ROS package (`COLCON_IGNORE`).
 | --- | --- | --- | --- | --- |
 | YOLO (ultralytics) | `ml_bridge_models.yolo` | `specs/yolo.yaml` | coco8 (bags have no box labels) | one camera |
 | DINOv3 ViT-S/16 (timm) | `ml_bridge_models.dinov3` | `specs/dinov3.yaml` | bag images, DINO-style self-distillation (no labels) | one camera; publishes PCA of patch features as an image |
+| monodepth2 (Niantic) | `ml_bridge_models.monodepth2` | `specs/monodepth2.yaml` | bag images with the previous and next frame and camera_info, its self-supervised reprojection loss | one camera; publishes depth as 32FC1 (relative scale) |
+
+monodepth2 is not vendored: set `MONODEPTH2_DIR` to a checkout of
+https://github.com/nianticlabs/monodepth2 (non-commercial license) and pass
+`weights:=` a folder with `encoder.pth`, `depth.pth`, `pose_encoder.pth`, and
+`pose.pth` (default `$MONODEPTH2_DIR/models/mono_640x192`).
+
+DataLoader workers send their batches through pickle, and decoded bag messages do
+not pickle: a `collate_fn` that returns a message makes the loader wait forever.
+Return arrays, as the modules here do.
 
 ## Environment
 
