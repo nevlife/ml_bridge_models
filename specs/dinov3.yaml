@@ -1,0 +1,5 @@
+# Remap /camera/image to the camera topic.
+inputs:
+  /camera/image: {type: sensor_msgs/msg/Image}
+time: header
+output: {topic: ~/features, type: sensor_msgs/msg/Image}

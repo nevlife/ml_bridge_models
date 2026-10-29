@@ -11,6 +11,7 @@ requires-python = ">=3.10"
 
 [project.optional-dependencies]
 yolo = ["ultralytics"]
+dinov3 = ["timm"]
 
 [tool.setuptools]
 packages = ["ml_bridge_models"]

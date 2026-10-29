@@ -7,6 +7,7 @@ model's virtual environment, not a ROS package (`COLCON_IGNORE`).
 | Model | Module | Spec | Training data | Inference input |
 | --- | --- | --- | --- | --- |
 | YOLO (ultralytics) | `ml_bridge_models.yolo` | `specs/yolo.yaml` | coco8 (bags have no box labels) | one camera |
+| DINOv3 ViT-S/16 (timm) | `ml_bridge_models.dinov3` | `specs/dinov3.yaml` | bag images, DINO-style self-distillation (no labels) | one camera; publishes PCA of patch features as an image |
 
 ## Environment
 
@@ -18,7 +19,7 @@ environment.
 ```bash
 /usr/bin/python3 -m venv --system-site-packages venvs/yolo
 echo "numpy==1.26.4" > venvs/yolo/constraints.txt
-venvs/yolo/bin/pip install -c venvs/yolo/constraints.txt ultralytics
+venvs/yolo/bin/pip install -c venvs/yolo/constraints.txt ultralytics timm==1.0.30
 venvs/yolo/bin/pip install --no-deps -e ml_bridge_models
 colcon build --symlink-install --packages-select ml_bridge --python-shebang "/usr/bin/env python3"
 ```
@@ -32,7 +33,12 @@ ros2 run ml_bridge run --ros-args -p spec:=ml_bridge_models/specs/yolo.yaml \
 ros2 run ml_bridge run --ros-args -p spec:=ml_bridge_models/specs/yolo.yaml \
   -p model:=ml_bridge_models.yolo -p mode:=infer -p weights:=runs/yolo/weights/best.pt \
   -r /camera/image:=/my_camera/image_raw
+ros2 run ml_bridge run --ros-args -p spec:=ml_bridge_models/specs/dinov3.yaml \
+  -p model:=ml_bridge_models.dinov3 -p mode:=train -p bags:="['/data/run1']" \
+  -p out_dir:=runs -r /camera/image:=/my_camera/image_raw
 ```
+
+Topic remapping applies to the bag topics in train mode as well.
 
 ultralytics is AGPL-3.0; this repository only imports it.
 
