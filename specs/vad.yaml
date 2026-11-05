@@ -1,0 +1,16 @@
+# Remap the six camera topics, /odom (global pose with velocities in the body frame),
+# /imu, and /goal_pose (robot frame; it selects the left, right, or straight plan).
+inputs:
+  /camera_front/image: {type: sensor_msgs/msg/Image}
+  /camera_front_right/image: {type: sensor_msgs/msg/Image, tolerance_ms: 50}
+  /camera_front_left/image: {type: sensor_msgs/msg/Image, tolerance_ms: 50}
+  /camera_rear_wide/image: {type: sensor_msgs/msg/Image, tolerance_ms: 50}
+  /camera_rear_left/image: {type: sensor_msgs/msg/Image, tolerance_ms: 50}
+  /camera_rear_right/image: {type: sensor_msgs/msg/Image, tolerance_ms: 50}
+  /odom: {type: nav_msgs/msg/Odometry, tolerance_ms: 50}
+  /imu: {type: sensor_msgs/msg/Imu, tolerance_ms: 50}
+  /goal_pose: {type: geometry_msgs/msg/PoseStamped, tolerance_ms: 100, optional: true}
+reference: /camera_front/image
+time: header
+max_wait_ms: 200
+output: {topic: ~/path, type: nav_msgs/msg/Path}

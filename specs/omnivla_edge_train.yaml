@@ -1,0 +1,11 @@
+# Training only: the future odometry window is the label, which a live run could only
+# have 2.7 s late. Odometry must follow REP 103 for the robot: child frame x forward.
+inputs:
+  /camera/image:
+    type: sensor_msgs/msg/Image
+    window: {every_ms: 333, past: 5, tolerance_ms: 40}
+  /odom:
+    type: nav_msgs/msg/Odometry
+    tolerance_ms: 60
+    window: {every_ms: 333, future: 8, tolerance_ms: 60}
+time: header

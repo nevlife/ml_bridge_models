@@ -1,0 +1,9 @@
+# Remap /camera/image to the camera and /goal_pose to a goal in the robot frame
+# (x forward, y left). Frames are 1/3 s apart, as the model was trained.
+inputs:
+  /camera/image:
+    type: sensor_msgs/msg/Image
+    window: {every_ms: 333, past: 5, tolerance_ms: 40}
+  /goal_pose: {type: geometry_msgs/msg/PoseStamped, tolerance_ms: 100, optional: true}
+time: header
+output: {topic: ~/path, type: nav_msgs/msg/Path}

@@ -12,6 +12,7 @@ requires-python = ">=3.10"
 [project.optional-dependencies]
 yolo = ["ultralytics"]
 dinov3 = ["timm"]
+omnivla_edge = ["efficientnet_pytorch"]
 
 [tool.setuptools]
 packages = ["ml_bridge_models"]
