@@ -19,7 +19,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
-"""Make a VAD test bag from replay.json of vad_prepare.py: six cameras, ego state, goals."""
+"""Make a VAD test bag from replay.json of vad_etri_to_nuscenes.py: cameras, ego, goals."""
 
 import argparse
 import json
@@ -34,7 +34,7 @@ from rclpy.serialization import serialize_message
 import rosbag2_py
 from sensor_msgs.msg import Image, Imu
 
-DATA_PREFIX = 'data/etri/'
+DATA_PREFIX = '/data/'
 
 
 def _stamped(message, stamp_ns, frame):
@@ -88,7 +88,7 @@ def _goal(row, stamp_ns):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--data', required=True, help='folder of replay.json and train/')
+    parser.add_argument('--data', required=True, help='folder of replay.json and images/')
     parser.add_argument('--output', required=True)
     args = parser.parse_args()
     data = Path(args.data)

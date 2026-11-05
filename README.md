@@ -10,7 +10,7 @@ model's virtual environment, not a ROS package (`COLCON_IGNORE`).
 | DINOv3 ViT-S/16 (timm) | `ml_bridge_models.dinov3` | `specs/dinov3.yaml` | bag images, DINO-style self-distillation (no labels) | one camera; publishes PCA of patch features as an image |
 | monodepth2 (Niantic) | `ml_bridge_models.monodepth2` | `specs/monodepth2.yaml` | bag images with the previous and next frame and camera_info, its self-supervised reprojection loss | one camera; publishes depth as 32FC1 (relative scale) |
 | OmniVLA-edge (Hirose et al.) | `ml_bridge_models.omnivla_edge` | `specs/omnivla_edge.yaml`, `specs/omnivla_edge_train.yaml` | bag images and odometry; the future odometry is the label | one camera and a goal pose; publishes a path |
-| VAD tiny (Jiang et al.) | `ml_bridge_models.vad` | `specs/vad.yaml` | annotated ETRI scenes in its container | six cameras, odometry, IMU, and a goal that picks the command; publishes a path |
+| VAD-Tiny (Jiang et al.) | `ml_bridge_models.vad` | `specs/vad.yaml` | ETRI scenes converted to nuScenes conventions, with the original `tools/train.py` in its container | six cameras, odometry, IMU, and a goal that picks the command; publishes a path |
 
 monodepth2 is not vendored: set `MONODEPTH2_DIR` to a checkout of
 https://github.com/nianticlabs/monodepth2 (non-commercial license) and pass
@@ -26,12 +26,18 @@ path stays short and only its direction is comparable with the path driven.
 `tools/make_nav_bag.py` joins a camera bag and an odometry bag and writes the goals.
 
 VAD needs an older Python and mmcv, so it runs in a container (`VAD_IMAGE`, default
-`etri-vad:cu128`, which has no ROS). Set `VAD_DIR` to the sources and `VAD_DATA` to the
-output of `tools/vad_prepare.py` (run in the container) beside `train/<scene>/`.
-`tools/vad_worker.py` answers frames over a pipe, and calibration comes from the first
-frame of the annotation file. `tools/make_vad_bag.py` makes a replay bag. Its 8.8 MB
-images need a transport that keeps them: best effort over Cyclone UDP delivered no
-sample, rmw_zenoh with shared memory delivered them.
+`etri-vad:cu128`, which has no ROS). Set `VAD_DIR` to an unmodified checkout of
+https://github.com/hustvl/VAD, `VAD_DATA` to the output of `tools/vad_etri_to_nuscenes.py`
+(run in the container), and `VAD_RESNET` to the ResNet-50 file of its configs. Pass
+`weights:=` the VAD-Tiny checkpoint of its README: training starts from it.
+
+The conversion changes conventions, not content: the lidar frame turns from forward
++x to forward +y, names map to nuScenes classes, and images are undistorted and
+cropped. `tools/vad_etri_plugin.py` gives the dataset ETRI lanes through the interface
+of its nuScenes map class and restores NumPy aliases that the sources need.
+`tools/vad_worker.py` answers frames over a pipe, and `tools/make_vad_bag.py` makes a
+replay bag. Its images need a transport that keeps them: best effort over Cyclone
+delivered no sample, rmw_zenoh with shared memory delivered them.
 
 DataLoader workers send their batches through pickle, and decoded bag messages do
 not pickle: a `collate_fn` that returns a message makes the loader wait forever.

@@ -22,10 +22,11 @@
 VAD (Jiang et al.) planning from six cameras, in its own container.
 
 VAD needs a Python and mmcv that cannot share a process with this ROS, so train()
-and infer() run in the container VAD_IMAGE. VAD_DIR names the VAD sources with the
-config VAD_CONFIG, and VAD_DATA the output of tools/vad_prepare.py beside
-train/<scene>/ images. Infer needs no ROS in the container: tools/vad_worker.py
-reads frames from a pipe. Calibration comes from the annotation file.
+and infer() run in the container VAD_IMAGE. VAD_DIR names a checkout of
+https://github.com/hustvl/VAD, used unmodified, VAD_DATA the output of
+tools/vad_etri_to_nuscenes.py, and VAD_RESNET the ResNet-50 file of its configs.
+context.weights is the VAD checkpoint: train() starts from it, infer() runs it.
+tools/vad_worker.py reads frames from a pipe; calibration comes from the annotations.
 """
 
 import os
@@ -50,7 +51,7 @@ HEADER = struct.Struct('<Q')
 ROOT = '/workspace/VAD'
 TOOLS = Path(__file__).resolve().parent.parent / 'tools'
 IMAGE = os.environ.get('VAD_IMAGE', 'etri-vad:cu128')
-CONFIG = os.environ.get('VAD_CONFIG', 'projects/configs/VAD/VAD_etri_tiny.py')
+CONFIG = os.environ.get('VAD_CONFIG', 'projects/configs/VAD/VAD_tiny_stage_2.py')
 
 
 def _docker(*mounts):
@@ -60,7 +61,7 @@ def _docker(*mounts):
     command = ['docker', 'run', '--rm', '--gpus', 'all', '--ipc=host',
                '--user', f'{os.getuid()}:{os.getgid()}', '-e', 'HOME=/tmp',
                '-e', f'PYTHONPATH={ROOT}', '-w', ROOT,
-               '-v', f'{code}:{ROOT}:ro', '-v', f'{data}:{ROOT}/data/etri:ro',
+               '-v', f'{code}:{ROOT}:ro', '-v', f'{data}:/data:ro',
                '-v', f'{TOOLS}:/tools:ro']
     for host, container, mode in mounts:
         command += ['-v', f'{host}:{container}:{mode}']
@@ -85,7 +86,7 @@ class _Worker:
         # The image's entry point prints a banner to stdout, which is the protocol here.
         arguments = _docker((checkpoint.parent, '/weights', 'ro')) + [
             '-i', '--entrypoint', 'python', IMAGE, '/tools/vad_worker.py', CONFIG,
-            f'/weights/{checkpoint.name}', 'data/etri/vad_replay.pkl']
+            f'/weights/{checkpoint.name}', '/data/vad_replay.pkl']
         self.process = subprocess.Popen(arguments, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
         if self._read() != 'ready':
             raise RuntimeError('the VAD worker did not start')
@@ -143,12 +144,18 @@ def infer(worker, sample):
 def train(dataset, context):
     if dataset is not None:
         raise ValueError('vad trains on its annotated scenes in VAD_DATA: pass no bags')
+    if not context.weights:
+        raise ValueError('vad needs weights:= the checkpoint to start from')
     out = Path(context.out_dir or '.', 'vad').resolve()
     out.mkdir(parents=True, exist_ok=True)
-    arguments = _docker((out, '/out', 'rw')) + [
-        IMAGE, 'python', 'tools/train.py', CONFIG, '--work-dir', '/out', '--no-validate',
-        '--cfg-options', 'data.train.ann_file=data/etri/vad_train.pkl',
-        'runner.max_epochs=1', 'total_epochs=1', 'data.workers_per_gpu=2',
-        'log_config.interval=5']
+    weights = Path(context.weights).resolve()
+    resnet = Path(os.environ['VAD_RESNET']).resolve()
+    arguments = _docker((out, '/out', 'rw'), (weights.parent, '/weights', 'ro'),
+                        (resnet, '/resnet.pth', 'ro')) + [
+        '--entrypoint', 'python', IMAGE, '/tools/vad_train.py', CONFIG, '--work-dir', '/out',
+        '--no-validate', '--cfg-options', 'data.train.data_root=/data/',
+        'data.train.ann_file=/data/vad_train.pkl', f'load_from=/weights/{weights.name}',
+        'model.pretrained.img=/resnet.pth', 'runner.max_epochs=1', 'total_epochs=1',
+        'data.workers_per_gpu=2', 'log_config.interval=5']
     subprocess.run(arguments, check=True)
     context.logger.info(f'weights: {out}/latest.pth')

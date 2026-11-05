@@ -34,6 +34,8 @@ import pickle
 import struct
 import sys
 
+sys.path.insert(0, '/tools')
+
 # Importing the libraries already prints to stdout: keep it for the protocol first.
 OUTPUT = os.fdopen(os.dup(1), 'wb')
 os.dup2(2, 1)
@@ -45,6 +47,7 @@ from mmdet3d.datasets import build_dataset  # noqa: E402
 from mmdet3d.models import build_model  # noqa: E402
 import numpy as np  # noqa: E402
 import torch  # noqa: E402
+import vad_etri_plugin  # noqa: E402, F401
 
 HEADER = struct.Struct('<Q')
 SCENE = 'live'
@@ -102,9 +105,14 @@ def main():
 
     cfg = Config.fromfile(args.config)
     importlib.import_module(cfg.plugin_dir.replace('/', '.').rstrip('.'))
-    cfg.data.test.update(ann_file=args.annotations, test_mode=True)
+    cfg.data.test.update(ann_file=args.annotations, data_root='/data/', test_mode=True)
     cfg.data.test.pop('samples_per_gpu', None)
     cfg.data.test.pop('map_ann_file', None)
+    # A live run has no lidar file; the planner does not read points.
+    cfg.data.test.pipeline = [step for step in cfg.data.test.pipeline
+                              if step['type'] != 'LoadPointsFromFile']
+    collect = cfg.data.test.pipeline[-1]['transforms'][-1]
+    collect['keys'] = [key for key in collect['keys'] if key != 'points']
     dataset = build_dataset(cfg.data.test)
     model = build_model(cfg.model, test_cfg=cfg.get('test_cfg'))
     load_checkpoint(model, args.checkpoint, map_location='cpu')
@@ -118,8 +126,9 @@ def main():
         with torch.no_grad():
             result = model(return_loss=False, rescale=True, **collated)
         plans = result[0]['pts_bbox']['ego_fut_preds']
-        chosen = plans[int(np.argmax(request['command']))].cpu().double().cumsum(0)
-        write_message(OUTPUT, chosen.numpy())
+        chosen = plans[int(np.argmax(request['command']))].cpu().double().cumsum(0).numpy()
+        # VAD's frame looks along +y with +x to the right.
+        write_message(OUTPUT, np.stack([chosen[:, 1], -chosen[:, 0]], axis=1))
         index += 1
 
 
