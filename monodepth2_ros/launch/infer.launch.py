@@ -22,4 +22,4 @@ from ml_bridge.launch import infer_launch
 
 
 def generate_launch_description():
-    return infer_launch('monodepth2_ros', {'camera': '/camera/image', 'camera_info': '/camera/camera_info'})
+    return infer_launch('monodepth2_ros', {'camera': '/camera/image'})

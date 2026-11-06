@@ -30,7 +30,7 @@ setup(
     data_files=[
         ('share/ament_index/resource_index/packages', ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
-        ('share/' + package_name + '/config', ['config/spec.yaml']),
+        ('share/' + package_name + '/config', ['config/spec.yaml', 'config/train_spec.yaml']),
         ('share/' + package_name + '/launch', ['launch/infer.launch.py']),
     ],
     install_requires=['setuptools'],

@@ -19,92 +19,73 @@
 # THE SOFTWARE.
 
 """
-Train DINOv3 without ROS: a few steps of DINO-style self-distillation on bag images.
+Train DINOv3 without ROS: its own train.py, unmodified, on bag images.
 
-Two augmented crops, a student and an EMA teacher, and a cross-entropy between their
-centered, sharpened outputs.
+DINOV3_DIR names a checkout of https://github.com/facebookresearch/dinov3. train.py reads
+images through make_dataset, the only part replaced here. Inference runs the timm model, which
+has its own layout, so the last teacher is converted with timm's filter for these weights.
 """
 
-import copy
+import os
+from pathlib import Path
+import sys
 
 import numpy as np
+from PIL import Image
+import timm
+from timm.models.eva import checkpoint_filter_fn
 import torch
-from torch.nn import functional as F
-from .common import BATCH, CAMERA, CROP, STEPS, build_backbone, get_device, normalize
+
+from .common import BACKBONE, BATCH, CAMERA, STEPS
+
+CONFIG = 'dinov3/configs/train/vitl_im1k_lin834.yaml'
+OPTIONS = ('student.arch=vit_small', 'student.n_storage_tokens=4', 'student.drop_path_rate=0.1',
+           'student.mask_k_bias=true', 'train.num_workers=0', 'train.compile=false',
+           'optim.epochs=1', 'optim.warmup_epochs=0', 'teacher.warmup_teacher_temp_epochs=0',
+           'checkpointing.period=1000000')
 
 
-class _Head(torch.nn.Module):
+class _Images(torch.utils.data.Dataset):
 
-    def __init__(self, dim, out=4096, hidden=1024):
-        super().__init__()
-        self.mlp = torch.nn.Sequential(torch.nn.Linear(dim, hidden), torch.nn.GELU(),
-                                       torch.nn.Linear(hidden, out))
+    def __init__(self, dataset, transform, target_transform):
+        self.dataset = dataset
+        self.transform = transform
+        self.target_transform = target_transform
 
-    def forward(self, x):
-        return self.mlp(x)
+    def __len__(self):
+        return len(self.dataset)
 
-
-def _views(images):
-    """Two random resized crops with flips and brightness jitter, on the GPU."""
-    batch, _, height, width = images.shape
-    views = []
-    for _ in range(2):
-        crops = []
-        for image in images:
-            scale = float(torch.empty(1).uniform_(0.4, 1.0))
-            h, w = int(height * scale), int(min(width, height * scale * width / height))
-            y = int(torch.randint(0, height - h + 1, (1,)))
-            x = int(torch.randint(0, width - w + 1, (1,)))
-            crop = F.interpolate(image[None, :, y:y + h, x:x + w], (CROP, CROP),
-                                 mode='bilinear', antialias=True)
-            if torch.rand(1) < 0.5:
-                crop = crop.flip(-1)
-            crops.append(crop * float(torch.empty(1).uniform_(0.7, 1.3)))
-        views.append(normalize(torch.cat(crops).clamp(0, 1)))
-    return views
+    def __getitem__(self, index):
+        image = Image.fromarray(np.array(self.dataset[index][CAMERA][1]))
+        return self.transform(image), self.target_transform(None)
 
 
-def _collate(samples):
-    return torch.stack([torch.from_numpy(np.array(s[CAMERA][1])) for s in samples])
+def _save(run, out):
+    """Write the EMA teacher backbone in timm's layout."""
+    path = run / 'eval' / f'training_{STEPS - 1}' / 'teacher_checkpoint.pth'
+    state = torch.load(path, map_location='cpu', weights_only=True)['teacher']
+    teacher = {k.removeprefix('backbone.'): v for k, v in state.items()
+               if k.startswith('backbone.')}
+    model = timm.create_model(BACKBONE, pretrained=False)
+    model.load_state_dict(checkpoint_filter_fn(teacher, model))
+    torch.save(model.state_dict(), out)
 
 
 def train(dataset, context):
     if dataset is None:
-        raise ValueError('DINOv3 trains on bag images: pass bags')
-    device = get_device()
-    student = build_backbone(context.weights).to(device).train()
-    student_head = _Head(student.num_features).to(device)
-    teacher = copy.deepcopy(student).eval().requires_grad_(False)
-    teacher_head = copy.deepcopy(student_head).requires_grad_(False)
-    center = torch.zeros(1, 4096, device=device)
-    params = list(student.parameters()) + list(student_head.parameters())
-    optimizer = torch.optim.AdamW(params, lr=1e-5, weight_decay=0.04)
-    loader = torch.utils.data.DataLoader(dataset, batch_size=BATCH, shuffle=True, num_workers=2,
-                                         collate_fn=_collate, drop_last=True)
-    step = 0
-    while step < STEPS:
-        for pixels in loader:
-            images = pixels.to(device).permute(0, 3, 1, 2).float() / 255
-            views = _views(images)
-            with torch.autocast(device.type, dtype=torch.bfloat16):
-                with torch.no_grad():
-                    targets = [teacher_head(teacher(v)).float() for v in views]
-                outputs = [student_head(student(v)).float() for v in views]
-            loss = sum(-(F.softmax((t - center) / 0.04, -1) *
-                         F.log_softmax(s / 0.1, -1)).sum(-1).mean()
-                       for t, s in [(targets[0], outputs[1]), (targets[1], outputs[0])]) / 2
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
-            with torch.no_grad():
-                for t, s in zip(list(teacher.parameters()) + list(teacher_head.parameters()),
-                                params):
-                    t.mul_(0.996).add_(s.detach(), alpha=0.004)
-                center.mul_(0.9).add_(torch.cat(targets).mean(0, keepdim=True), alpha=0.1)
-            step += 1
-            context.logger.info(f'step {step}/{STEPS} loss {loss.item():.4f}')
-            if step == STEPS:
-                break
-    path = f'{context.out_dir or "."}/dinov3_teacher.pt'
-    torch.save(teacher.state_dict(), path)
-    context.logger.info(f'weights: {path}')
+        raise ValueError('dinov3 trains on bag images: pass bags')
+    code = os.environ['DINOV3_DIR']
+    sys.path.insert(0, code)
+    from dinov3.train import train as original
+
+    original.make_dataset = lambda dataset_str, transform, target_transform: _Images(
+        dataset, transform, target_transform)
+    run = Path(context.out_dir or '.', 'dinov3')
+    run.mkdir(parents=True, exist_ok=True)
+    sys.argv = ['train.py', '--config-file', str(Path(code, CONFIG)), '--output-dir', str(run),
+                '--no-resume', f'train.batch_size_per_gpu={BATCH}',
+                f'train.OFFICIAL_EPOCH_LENGTH={STEPS}', f'train.output_dir={run}',
+                f'evaluation.eval_period_iterations={STEPS}', *OPTIONS]
+    original.main()
+    _save(run, run / 'backbone.pt')
+    context.logger.info(f'weights: {run / "backbone.pt"}')

@@ -46,7 +46,7 @@ def build_backbone(weights):
 
 
 def to_tensor(rgb, device):
-    pixels = torch.from_numpy(np.array(rgb)).to(device)
+    pixels = rgb if torch.is_tensor(rgb) else torch.from_numpy(np.array(rgb)).to(device)
     return pixels.permute(2, 0, 1).unsqueeze(0).float() / 255
 
 

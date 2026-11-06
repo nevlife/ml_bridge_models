@@ -1,0 +1,3 @@
+tensorboardX
+ipython
+scikit-image

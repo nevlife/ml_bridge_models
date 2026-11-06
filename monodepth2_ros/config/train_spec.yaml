@@ -1,0 +1,11 @@
+# Training only: the next frame, the previous frame, and camera_info feed the
+# self-supervised loss. Inference uses the current frame: see spec.yaml.
+# camera_info is optional because recorders can store it hundreds of milliseconds after
+# the image; training skips samples without it.
+version: 1
+inputs:
+  /camera/image:
+    type: sensor_msgs/msg/Image
+    window: {every_ms: 67, past: 1, future: 1, tolerance_ms: 30}
+  /camera/camera_info: {type: sensor_msgs/msg/CameraInfo, tolerance_ms: 30, optional: true}
+time: header

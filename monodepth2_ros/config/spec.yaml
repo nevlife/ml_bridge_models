@@ -1,11 +1,6 @@
-# Remap /camera/image and /camera/camera_info to the camera. The future window makes
-# inference wait for the next frame; inference itself uses only the current one.
-# camera_info is optional: training needs it (and skips samples without it), inference
-# does not, and recorders can store it hundreds of milliseconds after the image.
+# Remap /camera/image to the camera.
+version: 1
 inputs:
-  /camera/image:
-    type: sensor_msgs/msg/Image
-    window: {every_ms: 67, past: 1, future: 1, tolerance_ms: 30}
-  /camera/camera_info: {type: sensor_msgs/msg/CameraInfo, tolerance_ms: 30, optional: true}
+  /camera/image: {type: sensor_msgs/msg/Image}
 time: header
 output: {topic: ~/depth, type: sensor_msgs/msg/Image}
