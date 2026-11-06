@@ -46,6 +46,7 @@ from mmcv.runner import load_checkpoint  # noqa: E402
 from mmdet3d.datasets import build_dataset  # noqa: E402
 from mmdet3d.models import build_model  # noqa: E402
 import numpy as np  # noqa: E402
+from pyquaternion import Quaternion  # noqa: E402
 import torch  # noqa: E402
 import vad_etri_plugin  # noqa: E402, F401
 
@@ -70,9 +71,25 @@ def can_bus(request):
     """Lay out the ego state as in NuScenes CAN bus records, angles last."""
     w, x, y, z = request['rotation']
     yaw = np.arctan2(2 * (w * z + x * y), 1 - 2 * (y * y + z * z)) % (2 * np.pi)
-    return np.concatenate([request['translation'], request['rotation'],
-                           request['acceleration'], request['rotation_rate'],
-                           request['velocity'], [yaw, np.degrees(yaw)]])
+    bus = np.concatenate([request['translation'], request['rotation'],
+                          request['acceleration'], request['rotation_rate'],
+                          request['velocity'], [yaw, np.degrees(yaw)]])
+    # The same assignment as the VAD dataset, so the model sees what it was trained on: this
+    # NumPy fills the four slots with the first value of a Quaternion.
+    bus[3:7] = Quaternion(request['rotation'])
+    return bus
+
+
+def apply_intrinsics(results, intrinsics):
+    """Replace the annotated camera matrices; the extrinsics stay those of the annotations."""
+    for index, k in enumerate(intrinsics):
+        if k is None:
+            continue
+        viewpad = np.eye(4)
+        viewpad[:3, :3] = k
+        results['cam_intrinsic'][index] = viewpad
+        results['lidar2img'][index] = viewpad @ results['lidar2cam'][index]
+        results['camera_intrinsics'][index] = viewpad.astype(np.float32)
 
 
 def prepare(dataset, request, index):
@@ -83,6 +100,7 @@ def prepare(dataset, request, index):
                    ego_fut_cmd=np.array(request['command'], dtype=np.float32),
                    ego_his_trajs=np.zeros_like(results['ego_his_trajs']),
                    ego_lcf_feat=np.zeros_like(results['ego_lcf_feat']))
+    apply_intrinsics(results, request['intrinsics'])
     dataset.pre_pipeline(results)
     images = [frame[..., ::-1].astype(np.float32) for frame in request['images']]
     stacked = images[0].shape + (len(images),)

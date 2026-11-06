@@ -81,8 +81,7 @@ checkout of https://github.com/hustvl/VAD, `VAD_DATA` to the output of
 of its configs. Pass the VAD-Tiny checkpoint of its README as weights. The conversion
 changes conventions, not content: the lidar frame turns from forward +x to forward +y,
 names map to nuScenes classes, and images are undistorted and cropped. `make_vad_bag.py`
-makes a replay bag. Its images need a transport that keeps them: best effort over
-Cyclone delivered no sample, rmw_zenoh with shared memory delivered them.
+makes a replay bag. Replay it on rmw_zenoh with shared memory.
 
 DataLoader workers send their batches through pickle, and decoded bag messages do not
 pickle: a `collate_fn` that returns a message makes the loader wait forever. Return

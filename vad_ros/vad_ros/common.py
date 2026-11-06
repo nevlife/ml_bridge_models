@@ -26,7 +26,8 @@ and infer() run in the container VAD_IMAGE. VAD_DIR names a checkout of
 https://github.com/hustvl/VAD, used unmodified, VAD_DATA the output of
 vad_etri_to_nuscenes.py, and VAD_RESNET the ResNet-50 file of its configs.
 context.weights is the VAD checkpoint: train() starts from it, infer() runs it.
-container/vad_worker.py reads frames from a pipe; calibration comes from the annotations.
+container/vad_worker.py reads frames from a pipe. CameraInfo gives the camera matrices when it
+arrives; the extrinsics, and any missing matrix, come from the annotations.
 """
 
 import os
@@ -36,6 +37,7 @@ import struct
 CAMERAS = ('camera_front', 'camera_front_right', 'camera_front_left', 'camera_rear_wide',
            'camera_rear_left', 'camera_rear_right')
 TOPICS = tuple(f'/{name}/image' for name in CAMERAS)
+INFOS = tuple(f'/{name}/camera_info' for name in CAMERAS)
 ODOM = '/odom'
 IMU = '/imu'
 GOAL = '/goal_pose'

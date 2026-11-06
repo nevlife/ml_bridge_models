@@ -26,7 +26,9 @@ import subprocess
 
 from geometry_msgs.msg import PoseStamped
 from nav_msgs.msg import Path as PathMessage
-from .common import CONFIG, FRAME, GOAL, HEADER, IMAGE, IMU, ODOM, TOPICS, command_for, docker
+import numpy as np
+from .common import (CONFIG, FRAME, GOAL, HEADER, IMAGE, IMU, INFOS, ODOM, TOPICS, command_for,
+                     docker)
 
 
 class _Worker:
@@ -68,6 +70,8 @@ def infer(worker, sample):
     pose = odom.pose.pose
     plan = worker.ask({
         'images': [sample[topic][1] for topic in TOPICS],
+        'intrinsics': [None if sample[topic] is None else np.reshape(sample[topic][1].k, (3, 3))
+                       for topic in INFOS],
         'stamp_s': sample['@time'] * 1e-9,
         'translation': [pose.position.x, pose.position.y, pose.position.z],
         'rotation': [pose.orientation.w, pose.orientation.x, pose.orientation.y,

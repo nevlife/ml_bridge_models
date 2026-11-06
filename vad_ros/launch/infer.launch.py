@@ -21,5 +21,13 @@
 from ml_bridge.launch import infer_launch
 
 
+CAMERAS = ('camera_front', 'camera_front_right', 'camera_front_left', 'camera_rear_wide',
+           'camera_rear_left', 'camera_rear_right')
+
+
 def generate_launch_description():
-    return infer_launch('vad_ros', {'camera_front': '/camera_front/image', 'camera_front_right': '/camera_front_right/image', 'camera_front_left': '/camera_front_left/image', 'camera_rear_wide': '/camera_rear_wide/image', 'camera_rear_left': '/camera_rear_left/image', 'camera_rear_right': '/camera_rear_right/image', 'odom': '/odom', 'imu': '/imu', 'goal': '/goal_pose'})
+    inputs = {'odom': '/odom', 'imu': '/imu', 'goal': '/goal_pose'}
+    for camera in CAMERAS:
+        inputs[camera] = f'/{camera}/image'
+        inputs[f'{camera}_info'] = f'/{camera}/camera_info'
+    return infer_launch('vad_ros', inputs)

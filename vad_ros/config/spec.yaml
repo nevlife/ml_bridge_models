@@ -1,5 +1,6 @@
-# Remap the six camera topics, /odom (global pose with velocities in the body frame),
+# Remap the six camera topics and their camera_info, /odom (global pose with velocities in the body frame),
 # /imu, and /goal_pose (robot frame; it selects the left, right, or straight plan).
+version: 1
 inputs:
   /camera_front/image: {type: sensor_msgs/msg/Image}
   /camera_front_right/image: {type: sensor_msgs/msg/Image, tolerance_ms: 50}
@@ -7,9 +8,15 @@ inputs:
   /camera_rear_wide/image: {type: sensor_msgs/msg/Image, tolerance_ms: 50}
   /camera_rear_left/image: {type: sensor_msgs/msg/Image, tolerance_ms: 50}
   /camera_rear_right/image: {type: sensor_msgs/msg/Image, tolerance_ms: 50}
+  /camera_front/camera_info: {type: sensor_msgs/msg/CameraInfo, align: hold, tolerance_ms: 60000, optional: true}
+  /camera_front_right/camera_info: {type: sensor_msgs/msg/CameraInfo, align: hold, tolerance_ms: 60000, optional: true}
+  /camera_front_left/camera_info: {type: sensor_msgs/msg/CameraInfo, align: hold, tolerance_ms: 60000, optional: true}
+  /camera_rear_wide/camera_info: {type: sensor_msgs/msg/CameraInfo, align: hold, tolerance_ms: 60000, optional: true}
+  /camera_rear_left/camera_info: {type: sensor_msgs/msg/CameraInfo, align: hold, tolerance_ms: 60000, optional: true}
+  /camera_rear_right/camera_info: {type: sensor_msgs/msg/CameraInfo, align: hold, tolerance_ms: 60000, optional: true}
   /odom: {type: nav_msgs/msg/Odometry, tolerance_ms: 50}
   /imu: {type: sensor_msgs/msg/Imu, tolerance_ms: 50}
-  /goal_pose: {type: geometry_msgs/msg/PoseStamped, tolerance_ms: 100, optional: true}
+  /goal_pose: {type: geometry_msgs/msg/PoseStamped, align: hold, tolerance_ms: 60000, optional: true}
 reference: /camera_front/image
 time: header
 max_wait_ms: 200

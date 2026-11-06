@@ -24,6 +24,7 @@
 import argparse
 import json
 from pathlib import Path
+import pickle
 
 import cv2
 from geometry_msgs.msg import PoseStamped
@@ -32,7 +33,7 @@ from nav_msgs.msg import Odometry
 import numpy as np
 from rclpy.serialization import serialize_message
 import rosbag2_py
-from sensor_msgs.msg import Image, Imu
+from sensor_msgs.msg import CameraInfo, Image, Imu
 
 DATA_PREFIX = '/data/'
 
@@ -50,6 +51,13 @@ def _image(path, stamp_ns, frame):
     message.encoding = 'rgb8'
     message.step = rgb.shape[1] * 3
     message.data = rgb.tobytes()
+    return message
+
+
+def _camera_info(camera, width, height, stamp_ns, frame):
+    message = _stamped(CameraInfo(), stamp_ns, frame)
+    message.width, message.height = width, height
+    message.k = [float(v) for v in np.ravel(camera['cam_intrinsic'])]
     return message
 
 
@@ -96,18 +104,23 @@ def main():
     writer.open(rosbag2_py.StorageOptions(uri=args.output, storage_id='mcap'),
                 rosbag2_py.ConverterOptions('cdr', 'cdr'))
     topics = {f'/{name}/image': 'sensor_msgs/msg/Image' for name in CAMERAS}
+    topics.update({f'/{name}/camera_info': 'sensor_msgs/msg/CameraInfo' for name in CAMERAS})
     topics.update({'/odom': 'nav_msgs/msg/Odometry', '/imu': 'sensor_msgs/msg/Imu',
                    '/goal_pose': 'geometry_msgs/msg/PoseStamped'})
     for index, (name, kind) in enumerate(topics.items()):
         writer.create_topic(rosbag2_py.TopicMetadata(id=index, name=name, type=kind,
                                                      serialization_format='cdr'))
     rows = json.loads((data / 'replay.json').read_text())
+    with open(data / 'vad_replay.pkl', 'rb') as stream:
+        cameras = pickle.load(stream)['infos'][0]['cams']
     for row in rows:
         stamp_ns = int(row['stamp_ms'] * 1e6)
         for name in CAMERAS:
             path = data / row['images'][name].removeprefix(DATA_PREFIX)
-            writer.write(f'/{name}/image', serialize_message(_image(path, stamp_ns, name)),
-                         stamp_ns)
+            image = _image(path, stamp_ns, name)
+            writer.write(f'/{name}/image', serialize_message(image), stamp_ns)
+            info = _camera_info(cameras[name], image.width, image.height, stamp_ns, name)
+            writer.write(f'/{name}/camera_info', serialize_message(info), stamp_ns)
         writer.write('/odom', serialize_message(_odometry(row, stamp_ns)), stamp_ns)
         writer.write('/imu', serialize_message(_imu(row, stamp_ns)), stamp_ns)
         goal = _goal(row, stamp_ns)
