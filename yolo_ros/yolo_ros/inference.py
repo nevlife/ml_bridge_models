@@ -20,6 +20,7 @@
 
 """YOLO detection (ultralytics) on one camera."""
 
+import numpy as np
 from ultralytics import YOLO
 from vision_msgs.msg import Detection2D, Detection2DArray, ObjectHypothesisWithPose
 from .common import CAMERA, DEFAULT_WEIGHTS
@@ -31,8 +32,8 @@ def load(context):
 
 def infer(model, sample):
     _, rgb = sample[CAMERA]
-    # ultralytics reads NumPy images as BGR.
-    result = model.predict(rgb[..., ::-1], verbose=False)[0]
+    # ultralytics reads NumPy images as BGR and keeps the last one, so it gets its own copy.
+    result = model.predict(np.array(rgb[..., ::-1]), verbose=False)[0]
     message = Detection2DArray()
     boxes = result.boxes
     for (x0, y0, x1, y1), cls, score in zip(boxes.xyxy.tolist(), boxes.cls.tolist(),

@@ -1,1 +1,4 @@
 ultralytics
+onnx
+onnxruntime
+onnxslim
